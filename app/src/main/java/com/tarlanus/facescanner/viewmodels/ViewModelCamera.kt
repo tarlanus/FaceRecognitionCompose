@@ -2,11 +2,6 @@ package com.tarlanus.facescanner.viewmodels
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageFormat
-import android.graphics.Rect
-import android.graphics.YuvImage
-import android.media.Image
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.OptIn
@@ -32,22 +27,19 @@ import com.tarlanus.facescanner.utility.LivenessDetector
 import com.tarlanus.facescanner.utility.SaveSingle
 import com.tarlanus.facescanner.utility.TensorUtility
 import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class ViewModelCamera : ViewModel() {
     private var camera: Camera? = null
-    private val _cameraSelector = MutableStateFlow(CameraSelector.DEFAULT_BACK_CAMERA)
+    private val _cameraSelector = MutableStateFlow(CameraSelector.DEFAULT_FRONT_CAMERA)
     val cameraSelector = _cameraSelector.asStateFlow()
     private val _tf = MutableStateFlow("")
     val tf = _tf.asStateFlow()
@@ -177,7 +169,6 @@ class ViewModelCamera : ViewModel() {
                     throw RuntimeException(e)
                 }
 
-                 var isModelQuantized = true
 
                 detector.process(image)
                     .addOnSuccessListener { faces ->
@@ -190,7 +181,7 @@ class ViewModelCamera : ViewModel() {
                             val bounds = face.boundingBox
 
                             registerFace = true
-                            performFaceRecognition(face, proxybitmap, tensorUtility, _valueOFImage, _setislive)
+                            startFaceRecognition(face, proxybitmap, tensorUtility, _valueOFImage, _setislive)
 
                         }
                         if (faces.isEmpty()) {
@@ -213,7 +204,7 @@ class ViewModelCamera : ViewModel() {
 
         }
 
-        fun performFaceRecognition(
+        fun startFaceRecognition(
             face: Face,
             proxybitmap: Bitmap,
             tensorUtility: TensorUtility,
@@ -276,40 +267,6 @@ class ViewModelCamera : ViewModel() {
                 }
             }
 
-
-            /*
-            val result = faceClassifier!!.recognizeImage(proxyscaled, registerFace)
-            var title: String? = "Unknown"
-            var confidence = 0f
-
-
-
-            Log.e("getregistering", "result $result")
-
-
-            if (result != null) {
-                if (registerFace) {
-
-                    Log.e("getregistering", "registerdialog $isLive")
-
-                } else {
-                    if (result.distance!! < 0.75f) {
-                        confidence = result.distance
-                        title = result.title
-
-                        Log.e("getregistering", "distance $title")
-
-                    } else {
-                        Log.e("getregistering", "not $title")
-
-                    }
-                }
-            } else {
-                Log.e("getregistering", "resultat nul")
-
-            }
-
-             */
 
 
         }

@@ -178,7 +178,7 @@ class TensorUtility(val context: Context) {
                 val nearests = nearest.second
 
                 if (nearests != null) {
-                    if (nearests < 0.71f) {
+                    if (nearests < 0.68f) {
                         val name = nearest.first
                         label = name
                         distance = nearest.second!!

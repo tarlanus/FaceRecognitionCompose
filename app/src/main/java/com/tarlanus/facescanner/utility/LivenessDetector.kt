@@ -24,7 +24,6 @@ class LivenessDetector(
     }
 
     /**
-     * Run liveness detection.
      * @param faceBitmap Input image must be RGB 224x224
      * @return true if live, false if spoof.
      */

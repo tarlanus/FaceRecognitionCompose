@@ -9,9 +9,7 @@ import android.graphics.RectF
  */
 interface FaceClassifier {
 
-    fun register(name: String, recognition: Recognition)
 
-    fun recognizeImage(bitmap: Bitmap, getExtra: Boolean): Recognition
 
     data class Recognition(
         val id: String? = null,

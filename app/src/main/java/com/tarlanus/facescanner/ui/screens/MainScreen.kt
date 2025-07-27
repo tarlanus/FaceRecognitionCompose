@@ -5,6 +5,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -53,7 +54,6 @@ fun MainScreen() {
     val viewModelMain: ViewModelMain = viewModel()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val stateSnackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val activity = LocalActivity.current
     val keyManifestCamera = android.Manifest.permission.CAMERA
@@ -90,10 +90,7 @@ fun MainScreen() {
     }
 
 
-    val lazyListState = rememberLazyListState()
-    val scrollState = rememberScrollState()
 
-    val screenHeight = LocalConfiguration.current.screenHeightDp
 
 
     Scaffold(
@@ -114,10 +111,11 @@ fun MainScreen() {
     ) { innerPad ->
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .background(LightBlue)
                 .padding(innerPad),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
 
 
@@ -132,7 +130,6 @@ fun MainScreen() {
                 }
             }
 
-            Text("List of scans", fontSize = 18.sp, color = Color.White)
             Button(onClick = {
                 viewModelMain.startCamera(context, activity)
 
@@ -141,49 +138,12 @@ fun MainScreen() {
             }) {
                 Text("Open Camera")
             }
-            Button(onClick = {
-
-            }) {
-                Text("Show List")
-            }
 
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 100.dp)
-            ) {
-                items(7) {
-                    Box(
-                        modifier = Modifier
-                            .padding(15.dp)
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .background(Color.Black)
-                    )
-                }
 
-                item {
-                    Button(
-                        onClick = { },
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .fillMaxWidth()
-                    ) {
-                        Text("Open Camera")
-                    }
-                }
 
-                item {
-                    Button(
-                        onClick = { },
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .fillMaxWidth()
-                    ) {
-                        Text("Show List")
-                    }
-                }
-            }
+
+
 
 
         }

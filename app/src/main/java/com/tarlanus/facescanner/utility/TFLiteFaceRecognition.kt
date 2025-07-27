@@ -18,7 +18,7 @@ import kotlin.math.sqrt
 import kotlin.text.Typography.registered
 import kotlin.times
 
-class TFLiteFaceRecognition private constructor(context: Context) : FaceClassifier {
+class TFLiteFaceRecognition(context: Context) : FaceClassifier {
 
     companion object {
         private const val OUTPUT_SIZE = 512
@@ -48,6 +48,7 @@ class TFLiteFaceRecognition private constructor(context: Context) : FaceClassifi
             d.tfLite = Interpreter(loadModelFile(assetManager, modelFilename))
             d.isModelQuantized = isQuantized
 
+
             val numBytesPerChannel = if (isQuantized) 1 else 4
             d.imgData = ByteBuffer.allocateDirect(1 * inputSize * inputSize * 3 * numBytesPerChannel).apply {
                 order(ByteOrder.nativeOrder())
@@ -63,7 +64,7 @@ class TFLiteFaceRecognition private constructor(context: Context) : FaceClassifi
     private lateinit var imgData: ByteBuffer
     private lateinit var intValues: IntArray
     private lateinit var embeddings: Array<FloatArray>
-    private lateinit var tfLite: Interpreter
+     lateinit var tfLite: Interpreter
 
     override fun register(name: String, recognition: FaceClassifier.Recognition) {
 

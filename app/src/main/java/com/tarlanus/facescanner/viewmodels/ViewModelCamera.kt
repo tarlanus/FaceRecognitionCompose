@@ -29,12 +29,16 @@ import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.tarlanus.facescanner.utility.FaceClassifier
 import com.tarlanus.facescanner.utility.LivenessDetector
 import com.tarlanus.facescanner.utility.TFLiteFaceRecognition
+import com.tarlanus.facescanner.utility.TensorUtility
+
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -92,6 +96,7 @@ class ViewModelCamera : ViewModel() {
     }
     @OptIn(ExperimentalGetImage::class)
     class FaceImageAnalyzer(val context: Context) : ImageAnalysis.Analyzer {
+        private lateinit var tensorUtility: TensorUtility
         private var croppedBitmap: Bitmap? = null
         private  val CROP_SIZE = 1000
         private lateinit var faceClassifier: FaceClassifier
@@ -129,10 +134,13 @@ class ViewModelCamera : ViewModel() {
         override fun analyze(imageProxy: ImageProxy) {
             val mediaImage = imageProxy.image
             if (mediaImage != null) {
+                val proxybitmap = imageProxy.toBitmap()
+
+
                 val detector = FaceDetection.getClient(options)
                 val cropSize = CROP_SIZE
                 croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888)
-                val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                val image = InputImage.fromBitmap(proxybitmap, 0)
 
                 val btmp = mediaImageToBitmap(mediaImage)
                 try {
@@ -142,6 +150,16 @@ class ViewModelCamera : ViewModel() {
                         160,
                         false,
                         context
+                    )
+
+                    tensorUtility = TensorUtility()
+                    tensorUtility.create(
+                        context.assets,
+                        "facenet.tflite",
+                        160,
+                        false,
+                        context
+
                     )
                 } catch (e: IOException) {
                     Log.e("getExceptionOcClass", e.message.toString())
@@ -157,6 +175,7 @@ class ViewModelCamera : ViewModel() {
                     throw RuntimeException(e)
                 }
 
+                 var isModelQuantized = true
 
                 detector.process(image)
                     .addOnSuccessListener { faces ->
@@ -165,8 +184,9 @@ class ViewModelCamera : ViewModel() {
 
                         for (face in faces) {
                             val bounds = face.boundingBox
-                            performFaceRecognition(face, btmp)
+
                             registerFace = true
+                            performFaceRecognition(face, proxybitmap, tensorUtility, isModelQuantized)
 
                         }
                      //   registerFace = false
@@ -183,71 +203,125 @@ class ViewModelCamera : ViewModel() {
 
         }
 
-        private fun performFaceRecognition(face: Face, btmp: Bitmap) {
+        fun performFaceRecognition(
+            face: Face,
+            proxybitmap: Bitmap,
+            tensorUtility: TensorUtility,
+            isModelQuantized: Boolean
+        ) {
+            //TODO crop the face
+            val bounds = face.getBoundingBox()
+            if (bounds.top < 0) {
+                bounds.top = 0
+            }
+            if (bounds.left < 0) {
+                bounds.left = 0
+            }
+            if (bounds.left + bounds.width() > croppedBitmap!!.getWidth()) {
+                bounds.right = croppedBitmap!!.getWidth() - 1
+            }
+            if (bounds.top + bounds.height() > croppedBitmap!!.getHeight()) {
+                bounds.bottom = croppedBitmap!!.getHeight() - 1
+            }
 
-            var bounds = face.boundingBox
-
-
-            bounds = Rect(
-                maxOf(bounds.left, 0),
-                maxOf(bounds.top, 0),
-                minOf(bounds.right, croppedBitmap!!.width - 1),
-                minOf(bounds.bottom, croppedBitmap!!.height - 1)
-            )
-
-            val crop = Bitmap.createBitmap(
+            var crop = Bitmap.createBitmap(
                 croppedBitmap!!,
                 bounds.left,
                 bounds.top,
                 bounds.width(),
                 bounds.height()
             )
-            val scaledCrop = Bitmap.createScaledBitmap(btmp, TF_OD_API_INPUT_SIZE2, TF_OD_API_INPUT_SIZE2, false)
-            val face224 = Bitmap.createScaledBitmap(btmp , 224, 224, false)
-            val isLive = livenessDetector.isLive(face224)
+            crop = Bitmap.createScaledBitmap(crop,
+                160,
+                160, false)
+
+            val proxyscaled = Bitmap.createScaledBitmap(proxybitmap, 160, 160, false)
+
+            val face224 = Bitmap.createScaledBitmap(proxybitmap, 224, 224, false)
+            val isLive = livenessDetector!!.isLive(face224)
+
             Log.e("getregistering", "isLive $isLive")
 
-            val result = faceClassifier.recognizeImage(scaledCrop, true)
-            val (title, confidence) = if (result != null) {
+            val intValues = IntArray(160 * 160)
+            proxyscaled.getPixels(intValues, 0, proxyscaled.width, 0, 0, proxyscaled.width, proxyscaled.height)
+
+            val  imgData = ByteBuffer.allocateDirect(1 * 160 * 160 * 3 * 4).apply {
+                order(ByteOrder.nativeOrder())
+            }
+            imgData.rewind()
+
+            val inputSize = 160
+             val OUTPUT_SIZE = 512
+             val IMAGE_MEAN = 128.0f
+              val IMAGE_STD = 128.0f
+            for (i in 0 until inputSize) {
+                for (j in 0 until inputSize) {
+                    val pixelValue = intValues[i * inputSize + j]
+                    if (isModelQuantized) {
+                        imgData.put(((pixelValue shr 16) and 0xFF).toByte())
+                        imgData.put(((pixelValue shr 8) and 0xFF).toByte())
+                        imgData.put((pixelValue and 0xFF).toByte())
+                    } else {
+                        imgData.putFloat(((pixelValue shr 16 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+                        imgData.putFloat(((pixelValue shr 8 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+                        imgData.putFloat(((pixelValue and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+                    }
+                }
+            }
+
+           val  embeddings = Array(1) { FloatArray(OUTPUT_SIZE) }
+            val inputArray = arrayOf<Any>(imgData)
+            val outputMap = mutableMapOf<Int, Any>()
+            outputMap[0] = embeddings
+
+            val tflite = tensorUtility.tfLiteInt
+
+            tflite.runForMultipleInputsOutputs(inputArray, outputMap)
+
+
+            var distance = Float.MAX_VALUE
+            var label = "?"
+            val id = "0"
+
+
+            /*
+            val result = faceClassifier!!.recognizeImage(proxyscaled, registerFace)
+            var title: String? = "Unknown"
+            var confidence = 0f
+
+
+
+            Log.e("getregistering", "result $result")
+
+
+            if (result != null) {
                 if (registerFace) {
-                    Log.e("getregistering", "register")
 
+                    Log.e("getregistering", "registerdialog $isLive")
 
-                    "Unknown" to 0f
                 } else {
-                    Log.e("getregistering", "already")
+                    if (result.distance!! < 0.75f) {
+                        confidence = result.distance
+                        title = result.title
 
-                    if ((result.distance ?: 0f) < 0.75f) result.title to (result.distance ?: 0f) else "Unknown" to 0f
+                        Log.e("getregistering", "distance $title")
+
+                    } else {
+                        Log.e("getregistering", "not $title")
+
+                    }
                 }
             } else {
-                Log.e("getregistering", "null")
+                Log.e("getregistering", "resultat nul")
 
-                "Unknown" to 0f
             }
-
-            val location = RectF(bounds)
-            /*
-            if (useFacing == CameraCharacteristics.LENS_FACING_BACK) {
-                location.right = croppedBitmap!!.width - location.right
-                location.left = croppedBitmap!!.width - location.left
-            }
-            cropToFrameTransform?.mapRect(location)
 
              */
-            val recognition = FaceClassifier.Recognition(
-                id = face.trackingId?.toString() ?: "",
-                title = title,
-                distance = confidence,
-                embedding = null,
-                location = location,
-                crop = null
-            )
-            if (!isLive) {
-                recognition.title = "Spoof"
-            }
-          //  mappedRecognitions.add(recognition)
+
+            val location = RectF(bounds)
 
         }
+
     }
 
     override fun onCleared() {

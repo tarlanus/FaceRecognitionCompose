@@ -30,7 +30,6 @@ import com.tarlanus.facerecognizerv01.roomdb.SavedFaces
 import com.tarlanus.facescanner.utility.FaceClassifier
 import com.tarlanus.facescanner.utility.LivenessDetector
 import com.tarlanus.facescanner.utility.SaveSingle
-import com.tarlanus.facescanner.utility.TFLiteFaceRecognition
 import com.tarlanus.facescanner.utility.TensorUtility
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -48,7 +47,7 @@ import java.util.concurrent.Executors
 
 class ViewModelCamera : ViewModel() {
     private var camera: Camera? = null
-    private val _cameraSelector = MutableStateFlow(CameraSelector.DEFAULT_FRONT_CAMERA)
+    private val _cameraSelector = MutableStateFlow(CameraSelector.DEFAULT_BACK_CAMERA)
     val cameraSelector = _cameraSelector.asStateFlow()
     private val _tf = MutableStateFlow("")
     val tf = _tf.asStateFlow()
@@ -56,7 +55,7 @@ class ViewModelCamera : ViewModel() {
     val valueOFImage = _valueOFImage.asStateFlow()
     private var cameraProvider: ProcessCameraProvider? = null
     private var preview: Preview? = null
-    private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private lateinit var cameraExecutor: ExecutorService
     private var jobCamera : Job? = null
 
     private var _setislive : MutableStateFlow<Boolean> = MutableStateFlow(false)
@@ -69,9 +68,18 @@ class ViewModelCamera : ViewModel() {
     }
 
     fun initializeCamera(context: Context, lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
+        _tf.value = ""
+        _valueOFImage.value = ""
+        _setislive.value = false
+        SaveSingle._recognition = null
+        val exhandler = CoroutineExceptionHandler { _, throwable ->
+            Log.e("getThrowAble", throwable.message.toString())
+
+        }
         jobCamera?.cancel()
-        jobCamera =  viewModelScope.launch {
+        jobCamera =  viewModelScope.launch(exhandler) {
             try {
+                cameraExecutor= Executors.newSingleThreadExecutor()
                 cameraProvider = ProcessCameraProvider.getInstance(context).get()
                 setupCamera(lifecycleOwner, previewView, context)
             } catch (e: Exception) {
@@ -130,27 +138,7 @@ class ViewModelCamera : ViewModel() {
             .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
             .build()
-        fun mediaImageToBitmap(mediaImage: Image): Bitmap {
-            val yBuffer = mediaImage.planes[0].buffer
-            val uBuffer = mediaImage.planes[1].buffer
-            val vBuffer = mediaImage.planes[2].buffer
 
-            val ySize = yBuffer.remaining()
-            val uSize = uBuffer.remaining()
-            val vSize = vBuffer.remaining()
-
-            val nv21 = ByteArray(ySize + uSize + vSize)
-            yBuffer.get(nv21, 0, ySize)
-            vBuffer.get(nv21, ySize, vSize)
-            uBuffer.get(nv21, ySize + vSize, uSize)
-
-            val yuvImage = YuvImage(nv21, ImageFormat.NV21, mediaImage.width, mediaImage.height, null)
-            val out = ByteArrayOutputStream()
-            yuvImage.compressToJpeg(Rect(0, 0, mediaImage.width, mediaImage.height), 100, out)
-            val imageBytes = out.toByteArray()
-
-            return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-        }
 
         override fun analyze(imageProxy: ImageProxy) {
             val mediaImage = imageProxy.image
@@ -163,15 +151,8 @@ class ViewModelCamera : ViewModel() {
                 croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888)
                 val image = InputImage.fromBitmap(proxybitmap, 0)
 
-                val btmp = mediaImageToBitmap(mediaImage)
                 try {
-                    faceClassifier = TFLiteFaceRecognition.create(
-                        context.assets,
-                        "facenet.tflite",
-                        160,
-                        false,
-                        context
-                    )
+
 
                     tensorUtility = TensorUtility(context)
                     tensorUtility.create(
@@ -216,7 +197,7 @@ class ViewModelCamera : ViewModel() {
                             _valueOFImage.value = ""
 
                             _setislive.value = false
-                            SaveSingle._recognition = null
+                      //      SaveSingle._recognition = null
                         }
                      //   registerFace = false
                     }
@@ -373,7 +354,7 @@ class ViewModelCamera : ViewModel() {
 
 
 
-                val saved = SavedFaces(1, tf.value, embedding = embeddingString)
+                val saved = SavedFaces(0, tf.value, embedding = embeddingString)
 
                 dao.insertData(saved)
             } else {

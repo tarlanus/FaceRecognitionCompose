@@ -17,7 +17,8 @@ interface FaceClassifier {
         val id: String? = null,
         var title: String? = null,
         var distance: Float? = null,
-        var embedding: Array<FloatArray>? = null,
+        @JvmField
+        var embedding: Any? = null,
         var location: RectF? = null,
         var crop: Bitmap? = null
     ) {

@@ -91,8 +91,9 @@ fun CameraScreen(onBack : () ->Unit) {
             scope.launch {
                 viewModelCamera.saveResults(context)
                 delay(500)
-                onBack()
                 viewModelCamera.setonCleared()
+                delay(100)
+                onBack()
             }
         }, enabled = setislive.value == true) {
             Text(text = "Save")
@@ -105,7 +106,7 @@ fun CameraScreen(onBack : () ->Unit) {
 
 
     BackHandler(onBack = {
-        viewModelCamera.setonCleared()
+
         onBack()
     })
 

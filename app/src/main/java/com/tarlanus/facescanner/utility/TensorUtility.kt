@@ -173,23 +173,38 @@ class TensorUtility(val context: Context) {
 
             val nearest = findNearest(embeedings[0]!!)
             if (nearest != null) {
-                val name = nearest.first
-                label = name
-                distance = nearest.second!!
-                rec.title = label
-                rec.distance = distance
+
+
+                val nearests = nearest.second
+
+                if (nearests != null) {
+                    if (nearests < 0.71f) {
+                        val name = nearest.first
+                        label = name
+                        distance = nearest.second!!
+                        rec.title = label
+                        rec.distance = distance
+
+                    } else {
+                        label = "Unknown"
+                        distance = 0f
+                        rec.title = label
+                        rec.distance = distance
+                        Log.e("getregistering", "not notfound")
+
+                    }
+                }
+
             }
 
             Log.e("getregistering", "distance $label")
-            rec.embedding = embeedings as Array<FloatArray>?
 
         } else {
             Log.e("getregistering", "noooo $label")
 
         }
 
-
-
+        rec.embedding = embeedings as Array<FloatArray>?
         afterRecognize(rec)
 
 
@@ -213,7 +228,10 @@ class TensorUtility(val context: Context) {
             if (ret == null || distance < ret.second!!) {
                 ret = Pair<String?, Float?>(name, distance)
             }
+            Log.e("getDistancion", distance.toString())
+
         }
+
         return ret
     }
 

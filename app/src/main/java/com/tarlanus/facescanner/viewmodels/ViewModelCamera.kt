@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
 import android.graphics.Rect
-import android.graphics.RectF
 import android.graphics.YuvImage
 import android.media.Image
 import android.util.Log
@@ -26,10 +25,15 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.tarlanus.facerecognizerv01.roomdb.AppDataBase
+import com.tarlanus.facerecognizerv01.roomdb.SavedFaces
 import com.tarlanus.facescanner.utility.FaceClassifier
 import com.tarlanus.facescanner.utility.LivenessDetector
+import com.tarlanus.facescanner.utility.SaveSingle
 import com.tarlanus.facescanner.utility.TFLiteFaceRecognition
 import com.tarlanus.facescanner.utility.TensorUtility
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,8 +41,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -46,11 +48,23 @@ class ViewModelCamera : ViewModel() {
     private var camera: Camera? = null
     private val _cameraSelector = MutableStateFlow(CameraSelector.DEFAULT_FRONT_CAMERA)
     val cameraSelector = _cameraSelector.asStateFlow()
+    private val _tf = MutableStateFlow("")
+    val tf = _tf.asStateFlow()
+    private val _valueOFImage = MutableStateFlow("")
+    val valueOFImage = _valueOFImage.asStateFlow()
     private var cameraProvider: ProcessCameraProvider? = null
     private var preview: Preview? = null
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var jobCamera : Job? = null
 
+    private var _setislive : MutableStateFlow<Boolean> = MutableStateFlow(false)
+    var setislive = _setislive.asStateFlow()
+
+
+    
+    fun setTfValue(value : String) {
+        _tf.value = value
+    }
 
     fun initializeCamera(context: Context, lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
         jobCamera?.cancel()
@@ -77,7 +91,7 @@ class ViewModelCamera : ViewModel() {
                     .also {
                         it.setAnalyzer(
                             cameraExecutor,
-                            FaceImageAnalyzer(context)
+                            FaceImageAnalyzer(context, _valueOFImage, _setislive)
                         )
                     }
                 camera =   provider.bindToLifecycle(
@@ -95,7 +109,12 @@ class ViewModelCamera : ViewModel() {
         }
     }
     @OptIn(ExperimentalGetImage::class)
-    class FaceImageAnalyzer(val context: Context) : ImageAnalysis.Analyzer {
+    class FaceImageAnalyzer(
+        val context: Context,
+        val _valueOFImage: MutableStateFlow<String>,
+        val _setislive: MutableStateFlow<Boolean>,
+
+        ) : ImageAnalysis.Analyzer {
         private lateinit var tensorUtility: TensorUtility
         private var croppedBitmap: Bitmap? = null
         private  val CROP_SIZE = 1000
@@ -152,7 +171,7 @@ class ViewModelCamera : ViewModel() {
                         context
                     )
 
-                    tensorUtility = TensorUtility()
+                    tensorUtility = TensorUtility(context)
                     tensorUtility.create(
                         context.assets,
                         "facenet.tflite",
@@ -186,7 +205,7 @@ class ViewModelCamera : ViewModel() {
                             val bounds = face.boundingBox
 
                             registerFace = true
-                            performFaceRecognition(face, proxybitmap, tensorUtility, isModelQuantized)
+                            performFaceRecognition(face, proxybitmap, tensorUtility, _valueOFImage, _setislive)
 
                         }
                      //   registerFace = false
@@ -207,33 +226,13 @@ class ViewModelCamera : ViewModel() {
             face: Face,
             proxybitmap: Bitmap,
             tensorUtility: TensorUtility,
-            isModelQuantized: Boolean
+            _valueOFImage1: MutableStateFlow<String>,
+            _setislive1: MutableStateFlow<Boolean>,
         ) {
-            //TODO crop the face
-            val bounds = face.getBoundingBox()
-            if (bounds.top < 0) {
-                bounds.top = 0
-            }
-            if (bounds.left < 0) {
-                bounds.left = 0
-            }
-            if (bounds.left + bounds.width() > croppedBitmap!!.getWidth()) {
-                bounds.right = croppedBitmap!!.getWidth() - 1
-            }
-            if (bounds.top + bounds.height() > croppedBitmap!!.getHeight()) {
-                bounds.bottom = croppedBitmap!!.getHeight() - 1
-            }
 
-            var crop = Bitmap.createBitmap(
-                croppedBitmap!!,
-                bounds.left,
-                bounds.top,
-                bounds.width(),
-                bounds.height()
-            )
-            crop = Bitmap.createScaledBitmap(crop,
-                160,
-                160, false)
+            val bounds = face.getBoundingBox()
+
+
 
             val proxyscaled = Bitmap.createScaledBitmap(proxybitmap, 160, 160, false)
 
@@ -242,46 +241,33 @@ class ViewModelCamera : ViewModel() {
 
             Log.e("getregistering", "isLive $isLive")
 
-            val intValues = IntArray(160 * 160)
-            proxyscaled.getPixels(intValues, 0, proxyscaled.width, 0, 0, proxyscaled.width, proxyscaled.height)
 
-            val  imgData = ByteBuffer.allocateDirect(1 * 160 * 160 * 3 * 4).apply {
-                order(ByteOrder.nativeOrder())
+
+
+            if (isLive) {
+                Log.e("getregistering", "okClose")
+
+
+                _setislive1.value = true
+
+
+
+            } else {
+                _valueOFImage1.value = ""
+
+                _setislive1.value = false
+               SaveSingle._recognition = null
             }
-            imgData.rewind()
+            tensorUtility.recognizeImage(proxyscaled) { getRec ->
+                _valueOFImage1.value = getRec?.title + getRec?.distance
 
-            val inputSize = 160
-             val OUTPUT_SIZE = 512
-             val IMAGE_MEAN = 128.0f
-              val IMAGE_STD = 128.0f
-            for (i in 0 until inputSize) {
-                for (j in 0 until inputSize) {
-                    val pixelValue = intValues[i * inputSize + j]
-                    if (isModelQuantized) {
-                        imgData.put(((pixelValue shr 16) and 0xFF).toByte())
-                        imgData.put(((pixelValue shr 8) and 0xFF).toByte())
-                        imgData.put((pixelValue and 0xFF).toByte())
-                    } else {
-                        imgData.putFloat(((pixelValue shr 16 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-                        imgData.putFloat(((pixelValue shr 8 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-                        imgData.putFloat(((pixelValue and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-                    }
+                if (getRec != null) {
+                    Log.e("getRecOn", "OnRecog ${getRec.embedding}")
+
+                    SaveSingle._recognition = getRec
+
                 }
             }
-
-           val  embeddings = Array(1) { FloatArray(OUTPUT_SIZE) }
-            val inputArray = arrayOf<Any>(imgData)
-            val outputMap = mutableMapOf<Int, Any>()
-            outputMap[0] = embeddings
-
-            val tflite = tensorUtility.tfLiteInt
-
-            tflite.runForMultipleInputsOutputs(inputArray, outputMap)
-
-
-            var distance = Float.MAX_VALUE
-            var label = "?"
-            val id = "0"
 
 
             /*
@@ -318,7 +304,6 @@ class ViewModelCamera : ViewModel() {
 
              */
 
-            val location = RectF(bounds)
 
         }
 
@@ -326,6 +311,7 @@ class ViewModelCamera : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
+        Log.e("onclearedCameraView", "onclear")
         jobCamera?.cancel()
 
         cameraExecutor.shutdown()
@@ -333,8 +319,48 @@ class ViewModelCamera : ViewModel() {
 
     fun setonCleared() {
         jobCamera?.cancel()
+        _tf.value = ""
+        _valueOFImage.value = ""
+        _setislive.value = false
 
         cameraExecutor.shutdown()
+    }
+
+
+
+    fun saveResults(context: Context) {
+        val coroutineExceptionHandler = CoroutineExceptionHandler { _, t ->
+            Log.e("getEmbeddingSaves", t.localizedMessage.toString())
+        }
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+
+
+            val getrec = SaveSingle._recognition
+          //  Log.e("getRecOn", "Onsave $getrec")
+            Log.e("getRecOn", "embeddingString $getrec")
+
+            if (getrec != null) {
+                val roomDb = AppDataBase.getRoomInstance(context)
+                val dao = roomDb.getRoomDao()
+                val floatList = getrec.embedding as Array<FloatArray?>
+                var embeddingString = ""
+                for (f in floatList[0]!!) {
+                    embeddingString += f.toString() + ","
+                }
+
+
+
+                val saved = SavedFaces(1, tf.value, embedding = embeddingString)
+
+                dao.insertData(saved)
+            } else {
+                Log.e("getRecOn", "null")
+
+            }
+
+
+        }
+
     }
 
 }

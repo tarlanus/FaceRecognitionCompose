@@ -16,7 +16,7 @@ interface FaceClassifier {
     data class Recognition(
         val id: String? = null,
         var title: String? = null,
-        val distance: Float? = null,
+        var distance: Float? = null,
         var embedding: Array<FloatArray>? = null,
         var location: RectF? = null,
         var crop: Bitmap? = null

@@ -120,6 +120,8 @@ fun MainScreen() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
+
+
             if (showCamera.value) {
                 androidx.compose.ui.window.Dialog(onDismissRequest = {
                     viewModelMain.closeCamera()

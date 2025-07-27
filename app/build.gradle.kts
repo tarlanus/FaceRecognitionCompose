@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.devtools.ksp")
+
 }
 
 android {
@@ -41,8 +43,12 @@ android {
 }
 val lifecycle_version = "2.9.2"
 val camerax_version  = "1.4.2"
+val room_version = "2.7.2"
 
 dependencies {
+    implementation("androidx.room:room-runtime:${room_version}")
+    ksp("androidx.room:room-compiler:$room_version")
+    implementation("androidx.room:room-ktx:${room_version}")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:${lifecycle_version}")
     implementation("androidx.camera:camera-core:${camerax_version}")
     implementation("androidx.camera:camera-camera2:${camerax_version}")

@@ -1,26 +1,29 @@
 package com.tarlanus.facescanner.ui.screens
 
-import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.BackHandler
-import androidx.camera.core.CameraSelector
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardColors
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,37 +34,86 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tarlanus.facescanner.ui.theme.LightBlue
 import com.tarlanus.facescanner.viewmodels.ViewModelCamera
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun CameraScreen(onBack : () ->Unit) {
     val viewModelCamera : ViewModelCamera = viewModel()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val tf = viewModelCamera.tf.collectAsStateWithLifecycle()
+
+    val valueOFImage = viewModelCamera.valueOFImage.collectAsStateWithLifecycle()
+
+    val setislive = viewModelCamera.setislive.collectAsStateWithLifecycle()
+
+    val setTextLive = if (setislive.value == true) "Real-time" else "Real-time off"
+    val setColor = if (setislive.value == true) Color.Green else Color.Red
+
+
+    val scope = rememberCoroutineScope()
     val previewView = remember {
         PreviewView(context).apply {
             this.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
-    val cameraSelector = viewModelCamera.cameraSelector.collectAsStateWithLifecycle()
+
 
     LaunchedEffect(Unit) {
         viewModelCamera.initializeCamera(context, lifecycleOwner, previewView)
     }
 
 
+    Column(modifier = Modifier.padding(vertical = 20.dp).fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
 
-    Card(modifier = Modifier.height(230.dp).width(170.dp).border(width = 2.dp, color = LightBlue, shape = RoundedCornerShape(CornerSize(65.dp))), shape = RoundedCornerShape(CornerSize(65.dp)),
+
+
+        Card(modifier = Modifier.height(230.dp).width(164.dp).border(width = 2.dp, color = LightBlue, shape = RoundedCornerShape(CornerSize(70.dp))), shape = RoundedCornerShape(CornerSize(70.dp)),
         ) {
-        AndroidView(
-            factory = { previewView },
-            modifier = Modifier.fillMaxSize()
-        )
+            AndroidView(
+                factory = { previewView },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(text = valueOFImage.value, color = setColor)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        TextField(tf.value, onValueChange = {viewModelCamera.setTfValue(it)}, colors = TextFieldDefaults.colors(unfocusedTextColor = Color.Gray, focusedTextColor = Color.Black))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(text = setTextLive, color = setColor)
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(onClick = {
+            scope.launch {
+                viewModelCamera.saveResults(context)
+                delay(500)
+                onBack()
+                viewModelCamera.setonCleared()
+            }
+        }, enabled = setislive.value == true) {
+            Text(text = "Save")
+        }
+        Spacer(modifier = Modifier.height(170.dp))
+
+
     }
+
+
 
     BackHandler(onBack = {
         onBack()
         viewModelCamera.setonCleared()
     })
+
+    DisposableEffect(key1 = true) {
+        onDispose {
+            viewModelCamera.setonCleared()
+        }
+    }
 
 }
 

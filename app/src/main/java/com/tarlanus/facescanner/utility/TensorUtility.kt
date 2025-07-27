@@ -158,6 +158,9 @@ class TensorUtility(val context: Context) {
 
 
         var distance = Float.Companion.MAX_VALUE
+        Log.e("getregistering", "distancefirst $distance")
+
+
         val id = "0"
         var label: String? = "?"
         val rec = FaceClassifier.Recognition(
@@ -178,11 +181,14 @@ class TensorUtility(val context: Context) {
             }
 
             Log.e("getregistering", "distance $label")
+            rec.embedding = embeedings as Array<FloatArray>?
+
         } else {
             Log.e("getregistering", "noooo $label")
 
         }
-        rec.embedding = embeedings as Array<FloatArray>?
+
+
 
         afterRecognize(rec)
 

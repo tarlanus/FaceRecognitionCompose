@@ -33,9 +33,11 @@ import com.tarlanus.facescanner.utility.SaveSingle
 import com.tarlanus.facescanner.utility.TFLiteFaceRecognition
 import com.tarlanus.facescanner.utility.TensorUtility
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -201,12 +203,20 @@ class ViewModelCamera : ViewModel() {
                         Log.e("getFaces", "onResult")
 
 
+
                         for (face in faces) {
+                            Log.e("getFaces", face.toString())
                             val bounds = face.boundingBox
 
                             registerFace = true
                             performFaceRecognition(face, proxybitmap, tensorUtility, _valueOFImage, _setislive)
 
+                        }
+                        if (faces.isEmpty()) {
+                            _valueOFImage.value = ""
+
+                            _setislive.value = false
+                            SaveSingle._recognition = null
                         }
                      //   registerFace = false
                     }
@@ -259,13 +269,29 @@ class ViewModelCamera : ViewModel() {
                SaveSingle._recognition = null
             }
             tensorUtility.recognizeImage(proxyscaled) { getRec ->
-                _valueOFImage1.value = getRec?.title + getRec?.distance
+
+                val getValues = getRec
+                Log.e("getRecHere", "$getRec")
+                var setTitle = getRec?.title
+                if (setTitle.isNullOrEmpty()) {
+                    setTitle = "Unknown"
+                }
+                _valueOFImage1.value = setTitle + getRec?.distance
+
+
+
+
 
                 if (getRec != null) {
                     Log.e("getRecOn", "OnRecog ${getRec.embedding}")
 
                     SaveSingle._recognition = getRec
 
+                } else {
+                    _valueOFImage1.value = ""
+
+                    _setislive1.value = false
+                    SaveSingle._recognition = null
                 }
             }
 
@@ -311,10 +337,7 @@ class ViewModelCamera : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        Log.e("onclearedCameraView", "onclear")
-        jobCamera?.cancel()
-
-        cameraExecutor.shutdown()
+        setonCleared()
     }
 
     fun setonCleared() {
@@ -322,7 +345,7 @@ class ViewModelCamera : ViewModel() {
         _tf.value = ""
         _valueOFImage.value = ""
         _setislive.value = false
-
+        SaveSingle._recognition = null
         cameraExecutor.shutdown()
     }
 

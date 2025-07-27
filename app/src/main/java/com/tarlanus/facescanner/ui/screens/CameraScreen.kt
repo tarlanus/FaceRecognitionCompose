@@ -105,8 +105,8 @@ fun CameraScreen(onBack : () ->Unit) {
 
 
     BackHandler(onBack = {
-        onBack()
         viewModelCamera.setonCleared()
+        onBack()
     })
 
     DisposableEffect(key1 = true) {

@@ -11,8 +11,13 @@ import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionSelector.PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.ui.geometry.Size
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -82,10 +87,20 @@ class ViewModelCamera : ViewModel() {
     }
 
     private fun setupCamera(lifecycleOwner: LifecycleOwner, previewView: PreviewView, context : Context) {
+
         cameraProvider?.let { provider ->
             provider.unbindAll()
-            preview = Preview.Builder().build().also {
+            val resolutionSelector = ResolutionSelector.Builder()
+                .setAllowedResolutionMode(PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE)
+                .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
+                .build()
+            preview = Preview.Builder()
+
+                .setResolutionSelector(resolutionSelector)
+                .build().also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
+
             }
             try {
                 val imageAnalyzer = ImageAnalysis.Builder()
